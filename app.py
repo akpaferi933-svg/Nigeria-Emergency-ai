@@ -3,6 +3,9 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from xgboost import XGBClassifier
 from sklearn.preprocessing import LabelEncoder
+import requests
+import smtplib
+from email.mime.text import MIMEText
 
 # Page Configuration
 st.set_page_config(page_title="Nigeria National Emergency AI", page_icon="🇳🇬", layout="wide")
@@ -18,6 +21,44 @@ NIGERIA_STATES = [
     "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau",
     "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"
 ]
+
+# ==========================================
+# NOTIFICATION CHANNELS
+# ==========================================
+def send_sms_alert(phone_number, incident_summary):
+    url = "https://api.ng.termii.com/api/sms/send"
+    payload = {
+        "to": phone_number,
+        "from": "NEMA-ALERT",
+        "sms": f"EMERGENCY DISPATCH: {incident_summary}",
+        "api_key": "YOUR_TERMII_API_KEY"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"SMS Failed: {e}")
+
+def send_telegram_alert(message_text):
+    bot_token = "YOUR_TELEGRAM_BOT_TOKEN"
+    chat_id = "YOUR_DISPATCH_GROUP_CHAT_ID"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": chat_id, "text": message_text}, timeout=5)
+    except Exception as e:
+        print(f"Telegram Failed: {e}")
+
+def send_email_alert(agency_email, subject, body_text):
+    msg = MIMEText(body_text)
+    msg["Subject"] = subject
+    msg["From"] = "dispatch@emergency.gov.ng"
+    msg["To"] = agency_email
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login("your_email@gmail.com", "your_password")
+            server.sendmail("your_email@gmail.com", agency_email, msg.as_string())
+    except Exception as e:
+        print(f"Email Failed: {e}")
 
 # Primary Agency Mapping
 AGENCY_MAP = {
@@ -109,6 +150,13 @@ if st.button("Submit Dispatch Alert", type="primary"):
         assigned_agency = AGENCY_MAP.get(category, "General Emergency Unit")
         
         st.success("Emergency Classified and Routed Successfully!")
+        # Trigger multi-channel alerts upon submission
+        alert_msg = f"EMERGENCY REPORT: {category} in {selected_state}. Details: {emergency_text}. Caller: {caller_phone}"
+        
+        send_sms_alert(caller_phone, alert_msg)
+        send_telegram_alert(alert_msg)
+        send_email_alert("agency@emergency.gov.ng", "New Emergency Alert", alert_msg)
+        
         
         res_col1, res_col2, res_col3 = st.columns(3)
         res_col1.metric("Target State", selected_state)
