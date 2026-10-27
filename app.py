@@ -6,6 +6,8 @@ from sklearn.preprocessing import LabelEncoder
 import requests
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 
 # Page Configuration
 st.set_page_config(page_title="Nigeria National Emergency AI", page_icon="🇳🇬", layout="wide")
@@ -155,7 +157,7 @@ if st.button("Submit Dispatch Alert", type="primary"):
         
         send_sms_alert(caller_phone, alert_msg)
         send_telegram_alert(alert_msg)
-        send_email_alert("agency@emergency.gov.ng", "New Emergency Alert", alert_msg)
+        send_email_alert(selected_state, category, emergency_text)
         
         
         res_col1, res_col2, res_col3 = st.columns(3)
