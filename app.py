@@ -166,7 +166,7 @@ if submitted:
 
 
         
-        
+        # Indent these so they show up after submission
         res_col1, res_col2, res_col3 = st.columns(3)
         res_col1.metric("Target State", selected_state)
         res_col2.metric("Threat Category", category)
