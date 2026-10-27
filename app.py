@@ -128,21 +128,26 @@ vectorizer, label_encoder, model = load_and_train_model()
 # Dispatch Portal Layout
 st.subheader("Report an Emergency (Mberede / Gaggawa / Mberede)")
 
-col1, col2 = st.columns(2)
+# Wrap everything in a Streamlit Form
+with st.form("emergency_dispatch_form"):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_state = st.selectbox("Select State", NIGERIA_STATES)
+        location_details = st.text_input("LGA / Specific Location Details")
+        
+    with col2:
+        caller_phone = st.text_input("Reporter Phone Number", placeholder="080XXXXXXXX")
+        
+    emergency_text = st.text_area(
+        "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
+        placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
+    )
+    
+    # Use form submit button instead of regular button
+    submitted = st.form_submit_button("Submit Dispatch Alert", type="primary")
 
-with col1:
-    selected_state = st.selectbox("Select State", NIGERIA_STATES)
-    location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g. Maitama, Lokoja Expressway, Ikeja")
-
-with col2:
-    caller_phone = st.text_input("Reporter Phone Number", placeholder="080XXXXXXXX")
-
-emergency_text = st.text_area(
-    "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
-    placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
-)
-
-if st.button("Submit Dispatch Alert", type="primary"):
+if submitted:
     if not emergency_text or not location_details:
         st.error("Please provide both emergency details and location.")
     else:
@@ -152,12 +157,14 @@ if st.button("Submit Dispatch Alert", type="primary"):
         assigned_agency = AGENCY_MAP.get(category, "General Emergency Unit")
         
         st.success("Emergency Classified and Routed Successfully!")
-        # Trigger multi-channel alerts upon submission
+        
         alert_msg = f"EMERGENCY REPORT: {category} in {selected_state}. Details: {emergency_text}. Caller: {caller_phone}"
         
         send_sms_alert(caller_phone, alert_msg)
         send_telegram_alert(alert_msg)
         send_email_alert(selected_state, category, emergency_text)
+
+
         
         
         res_col1, res_col2, res_col3 = st.columns(3)
