@@ -4,15 +4,16 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import LabelEncoder
+from streamlit_geolocation import streamlit_geolocation
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="Nigeria National Emergency AI & Dispatch Platform",
+    page_title="Nigeria National Emergency AI & Tactical Command Platform",
     page_icon="🚨",
     layout="wide"
 )
 
-# Coordinates for all 36 States + FCT for Geo-Spatial Mapping
+# Approximate State Center Coordinates for Cross-Referencing
 STATE_COORDINATES = {
     "Abia": [5.5320, 7.4860], "Adamawa": [9.3265, 12.3984], "Akwa Ibom": [5.0377, 7.9128],
     "Anambra": [6.2209, 6.9370], "Bauchi": [10.3158, 9.8442], "Bayelsa": [4.7719, 6.0699],
@@ -29,7 +30,9 @@ STATE_COORDINATES = {
     "Zamfara": [12.1702, 6.6641]
 }
 
-# 2. Initialize Session State for Authentication, Logs & Map Data
+NIGERIA_STATES = sorted(list(STATE_COORDINATES.keys()))
+
+# 2. Session State Initialization
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_profile" not in st.session_state:
@@ -39,268 +42,273 @@ if "dispatch_logs" not in st.session_state:
 if "map_data" not in st.session_state:
     st.session_state.map_data = pd.DataFrame(columns=["lat", "lon"])
 
-# 3. Load and Train Advanced Multi-Lingual Threat Engine (Cached)
+# 3. Multi-Lingual Threat Engine
 @st.cache_resource
 def load_and_train_model():
     data = {
         'text': [
-            # --- Kidnapping & Banditry (Military / JTF / Tactical Police) ---
             "Bandits have invaded our village shooting guns and kidnapping people",
             "Gunmen abduct school children and take them to the bush",
-            "Armed men entered the community and started kidnapping residents",
             "Yan bindiga sun shigo kauyen mu suna sace mutane da bindiga",
             "Awon kidnappers ti gbe awon eniyan lo si igbo",
             "Ndị ohi ji egbe tọọrọ mmadụ n'obodo anyị",
-            "Bad boys carry gun enter community dey kidnap pipu for bush",
-            
-            # --- Armed Robbery & Community Attacks (Police / Civil Defence) ---
             "Armed robbery ongoing near the commercial bank",
             "Thieves break into houses with weapons shooting sporadically",
-            "Awon ole nbonilowo ni ile ifowopamo pẹlu ibọn",
-            "Yan fashi suna harbi a kasuwa suna satar kayayyaki",
-            "Ohi ji egbe na-apu n'ulo aku",
-            "Bad boys dey roba shop with gun for junction",
-
-            # --- Fire Outbreaks (Fire Service) ---
             "Fire outbreak in the residential building",
             "Inferno burning down market stalls and shops",
-            "Ina njo ile ni agbegbe wa",
-            "Gobiya tana cin ginin gidaje",
-            "Akwukwo oku na-agba na ulo",
-            "Fire deh burn house serious for street",
-
-            # --- Traffic & Road Accidents (FRSC) ---
             "Multiple car crash on the expressway blood dey flow",
-            "Trailer somersaulted blocking the main highway",
-            "Oti wa ijamba oko lori titi",
-            "Hatsarin mota ya faru a babban kwanji",
-            "Iberibe okporo uzu mere na express",
-            "Motors don jam themselves for road accident",
-
-            # --- Medical Emergencies (NEMA / Health Services) ---
-            "Person collapsed and needs immediate medical response",
-            "Severe cholera outbreak and people fainting",
-            "Eyan kan ti gbe emi mi leri aisan gbona",
-            "Mutum ya yanke jiki ya fadi yana bukatan likita",
-            "Onye adaala ma nwee mkpa doro anya",
-            "Person don faint heavily he no dey breathe well"
+            "Person collapsed and needs immediate medical response"
         ],
         'category': [
-            "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry",
-            "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery",
-            "Fire", "Fire", "Fire", "Fire", "Fire", "Fire",
-            "Traffic", "Traffic", "Traffic", "Traffic", "Traffic", "Traffic",
-            "Medical", "Medical", "Medical", "Medical", "Medical", "Medical"
+            "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry",
+            "Armed Robbery", "Armed Robbery",
+            "Fire", "Fire",
+            "Traffic",
+            "Medical"
         ]
     }
-    
     df = pd.DataFrame(data)
     vectorizer = TfidfVectorizer()
     X = vectorizer.fit_transform(df['text'])
-    
     label_encoder = LabelEncoder()
     y = label_encoder.fit_transform(df['category'])
-    
     model = MultinomialNB()
     model.fit(X, y)
-    
     return vectorizer, model, label_encoder
 
 vectorizer, model, label_encoder = load_and_train_model()
 
 AGENCY_MAP = {
-    "Kidnapping & Banditry": "Military Joint Task Force (JTF) / Counter-Terrorism & Police Tactical Command",
-    "Armed Robbery": "Nigeria Police Force (NPF) / Rapid Response Squad (RRS)",
+    "Kidnapping & Banditry": "Military Joint Task Force (JTF) / Counter-Terrorism Command",
+    "Armed Robbery": "Nigeria Police Force (NPF) / Rapid Response Squad",
     "Fire": "Federal Fire Service (FFS) / State Fire Command",
     "Traffic": "Federal Road Safety Corps (FRSC)",
-    "Medical": "National Emergency Management Agency (NEMA) / State Health Emergency Services"
+    "Medical": "National Emergency Management Agency (NEMA) / Health Services"
 }
 
-NIGERIA_STATES_FCT = sorted(list(STATE_COORDINATES.keys()))
+# 4. Mode Selection (Citizen Reporter Portal vs. Security Command Center)
+st.sidebar.title("🛡️ Platform Access Mode")
+portal_mode = st.sidebar.radio("Select Portal", ["Citizen Dispatch Portal", "Agency Tactical Command Dashboard"])
 
-# 4. Authentication Gate (Ensures accountability and prevents fake setups)
-if not st.session_state.logged_in:
-    st.markdown("## 🔐 Citizen Security Verification Portal")
-    st.info("To prevent false alarms, ambushes, and safeguard responding security personnel, all reporters must verify their identity before accessing the emergency dispatch grid.")
-    
-    with st.form("auth_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            full_name = st.text_input("Full Legal Name", placeholder="e.g., Chinedu Okafor")
-            phone = st.text_input("Verified Phone Number", placeholder="e.g., 08012345678")
-        with col2:
-            email = st.text_input("Email Address", placeholder="e.g., user@domain.com")
-            nin_id = st.text_input("National Identification Number (NIN) / ID", placeholder="11-digit NIN or Valid ID")
-            
-        submitted_auth = st.form_submit_button("Verify & Enter Dispatch Grid", type="primary")
+# =====================================================================
+# PORTAL MODE 1: CITIZEN DISPATCH PORTAL (WITH DUAL-LOCATION VERIFICATION)
+# =====================================================================
+if portal_mode == "Citizen Dispatch Portal":
+
+    if not st.session_state.logged_in:
+        st.markdown("## 🔐 Citizen Security Verification Portal")
+        st.info("Identity binding is mandatory to prevent false alarms, security setups, and protect responding tactical units.")
         
-        if submitted_auth:
-            if not full_name or not phone or not email or not nin_id:
-                st.error("All verification fields are required to proceed.")
-            else:
-                st.session_state.logged_in = True
-                st.session_state.user_profile = {
-                    "full_name": full_name,
-                    "phone": phone,
-                    "email": email,
-                    "nin_id": nin_id,
-                    "status": "VERIFIED_CITIZEN"
-                }
-                st.success("Identity verified successfully! Loading secure dashboard...")
-                st.rerun()
-
-else:
-    # 5. Main Emergency Reporting Dashboard
-    st.sidebar.title("👤 Reporter Profile")
-    st.sidebar.write(f"**Name:** {st.session_state.user_profile['full_name']}")
-    st.sidebar.write(f"**Phone:** {st.session_state.user_profile['phone']}")
-    st.sidebar.write(f"**Status:** 🛡️ {st.session_state.user_profile['status']}")
-    
-    if st.sidebar.button("Logout / Switch User"):
-        st.session_state.logged_in = False
-        st.session_state.user_profile = {}
-        st.rerun()
-
-    st.title("🚨 Nigeria National Emergency AI & Dispatch Platform")
-    st.caption("Secure multi-channel crisis management, automated agency routing, and telecommunications dispatch relay.")
-
-    # Channel Selection Tabs
-    tab1, tab2 = st.tabs(["🌐 Online Web AI Dispatch Portal", "📱 Offline Telecom USSD Gateway (*347*911#)"])
-
-    # TAB 1: WEB AI DISPATCH
-    with tab1:
-        with st.form("emergency_form"):
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                selected_state = st.selectbox("Select State / Territory", NIGERIA_STATES_FCT)
-            with col_s2:
-                location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g., Birnin Gwari LGA / Wuse Zone 4")
+        with st.form("auth_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                full_name = st.text_input("Full Legal Name", placeholder="e.g., Chinedu Okafor")
+                phone = st.text_input("Verified Phone Number", placeholder="e.g., 08012345678")
+            with col2:
+                email = st.text_input("Email Address", placeholder="e.g., user@domain.com")
+                nin_id = st.text_input("National Identification Number (NIN) / ID", placeholder="11-digit NIN or Valid ID")
                 
-            emergency_text = st.text_area(
-                "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
-                placeholder="e.g., Bandits don enter village OR Fire outbreak OR Motors don jam..."
-            )
+            submitted_auth = st.form_submit_button("Verify & Access Emergency Grid", type="primary")
             
-            submit_btn = st.form_submit_button("Submit Secure Dispatch Alert", type="primary")
+            if submitted_auth:
+                if not full_name or not phone or not email or not nin_id:
+                    st.error("All verification fields are required.")
+                else:
+                    st.session_state.logged_in = True
+                    st.session_state.user_profile = {
+                        "full_name": full_name, "phone": phone, "email": email,
+                        "nin_id": nin_id, "status": "VERIFIED_CITIZEN"
+                    }
+                    st.success("Identity verified! Loading emergency dispatch grid...")
+                    st.rerun()
+
+    else:
+        st.sidebar.title("👤 Reporter Profile")
+        st.sidebar.write(f"**Name:** {st.session_state.user_profile['full_name']}")
+        st.sidebar.write(f"**Phone:** {st.session_state.user_profile['phone']}")
+        st.sidebar.write(f"**NIN:** {st.session_state.user_profile['nin_id']}")
+        st.sidebar.write(f"**Status:** 🛡️ {st.session_state.user_profile['status']}")
+        
+        if st.sidebar.button("Logout / Switch User"):
+            st.session_state.logged_in = False
+            st.session_state.user_profile = {}
+            st.rerun()
+
+        st.title("🚨 Nigeria National Emergency AI Dispatch Portal")
+        st.caption("Integrated Dual-Location Verification & Multi-Agency Emergency Dispatch System")
+
+        st.markdown("---")
+        st.subheader("1. Automatic Device Location Capture")
+        st.write("Capture your current GPS location to cross-reference with your declared emergency location:")
+        
+        # Capture exact physical device coordinates
+        device_location = streamlit_geolocation()
+        
+        user_lat = device_location.get("latitude") if device_location else None
+        user_lon = device_location.get("longitude") if device_location else None
+
+        if user_lat and user_lon:
+            st.success(f"📍 **Device GPS Locked:** Latitude: `{user_lat:.4f}`, Longitude: `{user_lon:.4f}`")
+        else:
+            st.info("Click the location button above to lock your current device GPS position.")
+
+        st.markdown("---")
+        st.subheader("2. Emergency Incident Reporting Form")
+
+        with st.form("emergency_form"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                claimed_state = st.selectbox("Declared Emergency State", NIGERIA_STATES)
+            with col_b:
+                claimed_location = st.text_input("LGA / Ward / Specific Landmark", placeholder="e.g., Funtua LGA / Central Market Junction")
+
+            emergency_text = st.text_area(
+                "Describe the Incident (English, Pidgin, Hausa, Yoruba, Igbo)",
+                placeholder="e.g., Bandits don enter village OR Fire outbreak for market..."
+            )
+
+            submit_btn = st.form_submit_button("Transmit Verified Emergency Alert", type="primary")
 
             if submit_btn:
-                if not emergency_text or not location_details:
-                    st.error("Please provide both emergency details and specific location.")
+                if not emergency_text or not claimed_location:
+                    st.error("Please fill in both the location details and incident description.")
                 else:
-                    # ML Classification
+                    # ML Threat Classification
                     X_input = vectorizer.transform([emergency_text])
                     prediction = model.predict(X_input)[0]
                     category = label_encoder.inverse_transform([prediction])[0]
-                    assigned_agency = AGENCY_MAP.get(category, "General Emergency Security Unit")
-                    
-                    st.success("Threat Classified & Multi-Channel Dispatch Broadcasted!")
-                    
-                    # Display Metrics
-                    res_col1, res_col2, res_col3 = st.columns(3)
-                    res_col1.metric("Target State", selected_state)
-                    res_col2.metric("Threat Category", category)
-                    res_col3.metric("Assigned Tactical Command", assigned_agency)
-                    
-                    # Simulate Telecom SMS/WhatsApp Gateway Relay
-                    st.warning(f"📡 **Telecom Gateway Relay Active:** Priority SMS alert & WhatsApp dispatch payload dispatched to {assigned_agency} field commanders in {selected_state}.")
+                    assigned_agency = AGENCY_MAP.get(category, "General Security Command")
 
-                    # Update Map Coordinates
-                    coords = STATE_COORDINATES[selected_state]
-                    new_map_point = pd.DataFrame({"lat": [coords[0]], "lon": [coords[1]]})
-                    st.session_state.map_data = pd.concat([st.session_state.map_data, new_map_point], ignore_index=True)
+                    # DUAL-LOCATION VERIFICATION ALGORITHM
+                    state_base_coords = STATE_COORDINATES.get(claimed_state, [9.0765, 7.3986])
+                    
+                    if user_lat and user_lon:
+                        # Calculate rough spatial offset between state center and device position
+                        lat_diff = abs(user_lat - state_base_coords[0])
+                        lon_diff = abs(user_lon - state_base_coords[1])
+                        
+                        # Threshold for cross-state discrepancy flag (~2.5 degrees ~ 250km)
+                        if lat_diff > 2.5 or lon_diff > 2.5:
+                            verification_flag = "🚨 SUSPECTED FALSE ALARM / LOCATION MISMATCH"
+                            flag_color = "error"
+                        else:
+                            verification_flag = "✅ VERIFIED PHYSICAL LOCATION MATCH"
+                            flag_color = "success"
+                        
+                        actual_lat = user_lat
+                        actual_lon = user_lon
+                    else:
+                        verification_flag = "⚠️ GPS UNBOUND (MANUAL REPORT)"
+                        flag_color = "warning"
+                        actual_lat = state_base_coords[0]
+                        actual_lon = state_base_coords[1]
 
-                    # Bind Log Entry
+                    # Display Verification Output
+                    st.success(f"Emergency Alert Routed to **{assigned_agency}**")
+                    
+                    if flag_color == "error":
+                        st.error(f"**Security Audit Flag:** {verification_flag}. The reported state ({claimed_state}) does not match your device's current location!")
+                    elif flag_color == "success":
+                        st.success(f"**Security Audit Flag:** {verification_flag}")
+                    else:
+                        st.warning(f"**Security Audit Flag:** {verification_flag}")
+
+                    # Update Map Data
+                    new_point = pd.DataFrame({"lat": [actual_lat], "lon": [actual_lon]})
+                    st.session_state.map_data = pd.concat([st.session_state.map_data, new_point], ignore_index=True)
+
+                    # Store Log Entry with Full Audit Details
                     log_entry = {
                         "Timestamp": pd.Timestamp.now(),
-                        "Channel": "WEB_AI_PORTAL",
                         "Reporter Name": st.session_state.user_profile["full_name"],
                         "Reporter Phone": st.session_state.user_profile["phone"],
-                        "Verification Status": st.session_state.user_profile["status"],
-                        "State": selected_state,
-                        "Location": location_details,
+                        "Reporter NIN": st.session_state.user_profile["nin_id"],
+                        "Declared State": claimed_state,
+                        "Declared Location": claimed_location,
                         "Threat Category": category,
                         "Assigned Agency": assigned_agency,
-                        "Details": emergency_text
+                        "Verification Flag": verification_flag,
+                        "Actual Device Lat": actual_lat,
+                        "Actual Device Lon": actual_lon,
+                        "Nav Link": f"https://www.google.com/maps?q={actual_lat},{actual_lon}",
+                        "Incident Details": emergency_text
                     }
                     st.session_state.dispatch_logs.append(log_entry)
 
-    # TAB 2: USSD SIMULATOR FOR RURAL / FEATURE PHONES
-    with tab2:
-        st.subheader("📱 Offline USSD Emergency Gateway (`*347*911#`)")
-        st.info("Designed for rural communities with zero internet connectivity. Accessible via basic feature phones.")
-        
-        with st.form("ussd_form"):
-            ussd_state = st.selectbox("Select Location State", NIGERIA_STATES_FCT, key="ussd_state")
-            ussd_threat = st.selectbox("Select Emergency Type", [
-                "1. Kidnapping & Banditry (Armed Invasion)",
-                "2. Armed Robbery In Progress",
-                "3. Fire Outbreak",
-                "4. Major Road Crash / Accident",
-                "5. Medical Emergency / Fainting"
-            ])
-            ussd_location = st.text_input("Village / Landmark / LGA", placeholder="e.g., Dan Sadau Village")
-            
-            ussd_submit = st.form_submit_button("Dial *347*911# & Transmit Alert")
+        # Map View
+        st.divider()
+        st.subheader("🗺️ Live Threat Heatmap")
+        if not st.session_state.map_data.empty:
+            st.map(st.session_state.map_data)
+        else:
+            st.info("No active map markers yet. Submit an alert above to render pins.")
 
-            if ussd_submit:
-                threat_clean = ussd_threat.split(". ")[1].split(" (")[0]
-                
-                category_map = {
-                    "Kidnapping & Banditry": "Kidnapping & Banditry",
-                    "Armed Robbery In Progress": "Armed Robbery",
-                    "Fire Outbreak": "Fire",
-                    "Major Road Crash / Accident": "Traffic",
-                    "Medical Emergency / Fainting": "Medical"
-                }
-                
-                cat = category_map.get(threat_clean, "General Emergency")
-                agency = AGENCY_MAP.get(cat, "Military/Police Command")
+# =====================================================================
+# PORTAL MODE 2: AGENCY TACTICAL COMMAND DASHBOARD (ADMIN VIEW)
+# =====================================================================
+else:
+    st.title("🛡️ National Security Tactical Command Center")
+    st.caption("Real-Time Multi-Agency Intelligence, Dual-Location Verification & Anti-Setup Audit Panel")
 
-                st.success("📲 USSD Signal Transmitted via Telecommunication Tower!")
-                
-                # Update Map Coordinates
-                coords = STATE_COORDINATES[ussd_state]
-                new_map_point = pd.DataFrame({"lat": [coords[0]], "lon": [coords[1]]})
-                st.session_state.map_data = pd.concat([st.session_state.map_data, new_map_point], ignore_index=True)
+    agency_filter = st.selectbox(
+        "Select Security Command Agency View",
+        [
+            "All Agencies (National Intelligence Command)",
+            "Military Joint Task Force (JTF) / Counter-Terrorism Command",
+            "Nigeria Police Force (NPF) / Rapid Response Squad",
+            "Federal Fire Service (FFS) / State Fire Command",
+            "Federal Road Safety Corps (FRSC)",
+            "National Emergency Management Agency (NEMA) / Health Services"
+        ]
+    )
 
-                log_entry = {
-                    "Timestamp": pd.Timestamp.now(),
-                    "Channel": "TELECOM_USSD_*347*911#",
-                    "Reporter Name": st.session_state.user_profile["full_name"],
-                    "Reporter Phone": st.session_state.user_profile["phone"],
-                    "Verification Status": st.session_state.user_profile["status"],
-                    "State": ussd_state,
-                    "Location": ussd_location,
-                    "Threat Category": cat,
-                    "Assigned Agency": agency,
-                    "Details": f"USSD Alert Code 911 - {threat_clean}"
-                }
-                st.session_state.dispatch_logs.append(log_entry)
-
-    # 6. Real-Time Geo-Spatial Crisis Map
     st.divider()
-    st.subheader("🗺️ Live National Geo-Spatial Threat Heatmap")
-    if not st.session_state.map_data.empty:
-        st.map(st.session_state.map_data)
-    else:
-        st.info("No active geo-spatial map markers yet. Submit an alert above to render live threat location pins.")
-
-    # 7. Session Dispatch Logs & CSV Export Panel
-    st.divider()
-    st.subheader("📋 Secure Multi-Channel Dispatch Logs & Intelligence Audits")
 
     if st.session_state.dispatch_logs:
         logs_df = pd.DataFrame(st.session_state.dispatch_logs)
-        st.dataframe(logs_df, use_container_width=True)
 
-        csv_data = logs_df.to_csv(index=False).encode('utf-8')
-        
-        st.download_button(
-            label="📥 Download Audited Intelligence Logs (CSV)",
-            data=csv_data,
-            file_name="verified_nigeria_security_dispatch_logs.csv",
-            mime="text/csv",
-            type="primary"
-        )
+        # Filter logs based on agency selection
+        if agency_filter != "All Agencies (National Intelligence Command)":
+            filtered_df = logs_df[logs_df["Assigned Agency"] == agency_filter]
+        else:
+            filtered_df = logs_df
+
+        st.subheader(f"📋 Live Dispatch Feed ({len(filtered_df)} Incidents Logged)")
+
+        if not filtered_df.empty:
+            for idx, row in filtered_df.iterrows():
+                # Color code based on audit flag
+                if "SUSPECTED FALSE ALARM" in row["Verification Flag"]:
+                    st.error(f"🚨 **[STAGED SETUP WARNING]** Incident #{idx+1} - {row['Threat Category']} in {row['Declared State']}")
+                else:
+                    st.success(f"⚡ Incident #{idx+1} - {row['Threat Category']} in {row['Declared State']}")
+
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.write(f"**Reporter:** {row['Reporter Name']}")
+                    st.write(f"**Phone:** {row['Reporter Phone']}")
+                    st.write(f"**NIN:** {row['Reporter NIN']}")
+                with c2:
+                    st.write(f"**Declared Location:** {row['Declared Location']}, {row['Declared State']}")
+                    st.write(f"**Audit Status:** {row['Verification Flag']}")
+                    st.write(f"**Assigned Agency:** {row['Assigned Agency']}")
+                with c3:
+                    st.write(f"**Timestamp:** {row['Timestamp']}")
+                    st.markdown(f"📍 [**Open Precise GPS Scene Navigation**]({row['Nav Link']})")
+
+                st.write(f"**Incident Description:** *\"{row['Incident Details']}\"*")
+                st.divider()
+
+            # CSV Intelligence Export
+            csv_data = filtered_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Classified Tactical Intelligence Report (CSV)",
+                data=csv_data,
+                file_name="tactical_command_security_audit.csv",
+                mime="text/csv",
+                type="primary"
+            )
+        else:
+            st.info("No active incidents currently logged for this agency.")
     else:
-        st.info("No dispatch logs recorded in the current active session yet.")
+        st.info("No dispatch logs recorded in the current active session.")
