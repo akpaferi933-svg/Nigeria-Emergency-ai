@@ -81,6 +81,16 @@ AGENCY_MAP = {
     "Medical": "National Emergency Management Agency (NEMA) / State Health Services"
 }
 
+# Complete List of all 36 States + FCT
+NIGERIA_STATES_FCT = [
+    "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", 
+    "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", 
+    "FCT Abuja", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", 
+    "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", 
+    "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", 
+    "Yobe", "Zamfara"
+]
+
 # 4. Authentication Gate (Ensures accountability before reporting)
 if not st.session_state.logged_in:
     st.markdown("## 🔐 Citizen Security Verification Portal")
@@ -125,17 +135,17 @@ else:
         st.rerun()
 
     st.title("🚨 Nigeria National Emergency AI & Dispatch Platform")
-    st.caption("Secure multi-channel crisis management and automated agency routing system.")
+    st.caption("Secure multi-channel crisis management and automated agency routing system covering all 36 states and the FCT.")
 
     with st.form("emergency_form"):
         col_s1, col_s2 = st.columns(2)
         with col_s1:
-            selected_state = st.selectbox("Select State", ["Abia", "FCT Abuja", "Kogi", "Lagos", "Kano", "Rivers", "Anambra", "Oyo"])
+            selected_state = st.selectbox("Select State / Territory", NIGERIA_STATES_FCT)
         with col_s2:
             location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g., Wuse Zone 4, near Central Bank")
             
         emergency_text = st.text_area(
-            "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
+            "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Egbo)",
             placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
         )
         
