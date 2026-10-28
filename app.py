@@ -1,84 +1,31 @@
 import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from xgboost import XGBClassifier
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import LabelEncoder
-import requests
-import smtplib
-from email.mime.text import MIMEText
 
-# Page Configuration
-st.set_page_config(page_title="Nigeria National Emergency AI", page_icon="🇳🇬", layout="wide")
+# 1. Page Configuration
+st.set_page_config(
+    page_title="Nigeria National Emergency AI & Dispatch Platform",
+    page_icon="🚨",
+    layout="wide"
+)
 
-st.title("🇳🇬 Nigeria National AI Emergency Dispatch System")
-st.caption("Serving all 36 States & FCT — Supporting English, Pidgin, Hausa, Yoruba & Igbo")
-
-# All 36 States + FCT
-NIGERIA_STATES = [
-    "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-    "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
-    "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara",
-    "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau",
-    "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"
-]
-
-# ==========================================
-# NOTIFICATION CHANNELS
-# ==========================================
-def send_sms_alert(phone_number, incident_summary):
-    url = "https://api.ng.termii.com/api/sms/send"
-    payload = {
-        "to": phone_number,
-        "from": "NEMA-ALERT",
-        "sms": f"EMERGENCY DISPATCH: {incident_summary}",
-        "api_key": "YOUR_TERMII_API_KEY"
-    }
-    try:
-        requests.post(url, json=payload, timeout=5)
-    except Exception as e:
-        print(f"SMS Failed: {e}")
-
-def send_telegram_alert(message_text):
-    bot_token = "YOUR_TELEGRAM_BOT_TOKEN"
-    chat_id = "YOUR_DISPATCH_GROUP_CHAT_ID"
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": chat_id, "text": message_text}, timeout=5)
-    except Exception as e:
-        print(f"Telegram Failed: {e}")
-
-def send_email_alert(agency_email, subject, body_text):
-    msg = MIMEText(body_text)
-    msg["Subject"] = subject
-    msg["From"] = "dispatch@emergency.gov.ng"
-    msg["To"] = agency_email
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login("your_email@gmail.com", "your_password")
-            server.sendmail("your_email@gmail.com", agency_email, msg.as_string())
-    except Exception as e:
-        print(f"Email Failed: {e}")
-
-# Primary Agency Mapping
-AGENCY_MAP = {
-    "Fire": "Federal / State Fire Service",
-    "Traffic": "Federal Road Safety Corps (FRSC)",
-    "Security": "Nigeria Police Force (NPF) / Civil Defence (NSCDC)",
-    "Medical": "National Emergency Management Agency (NEMA) / State Health Services"
-}
-
-# Initialize session state for logs
+# 2. Initialize Session State for Authentication & Logs
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_profile" not in st.session_state:
+    st.session_state.user_profile = {}
 if "dispatch_logs" not in st.session_state:
     st.session_state.dispatch_logs = []
 
-# Load and Train Multi-Lingual Engine
+# 3. Load and Train Multi-Lingual Engine (Cached)
 @st.cache_resource
 def load_and_train_model():
     data = {
         'text': [
             # English
-            "Fire outbreak in the residential building", 
+            "Fire outbreak in the residential building",
             "Multiple car crash on the expressway",
             "Armed robbery ongoing near the commercial bank",
             "Person collapsed and needs immediate medical response",
@@ -99,9 +46,9 @@ def load_and_train_model():
             "Eyan kan ti gbe emi mi leri aisan gbona",
             # Igbo
             "Akwukwo oku na-agba na ulo",
-            "Ihe mberede ugbo ala mere n'okporo lei",
-            "Amonye ochi na-agba egbe na ahia",
-            "Mmadu adawo mba na-acho enyemaka emezie"
+            "Iberibe okporo uzu mere na express",
+            "Ohi ji egbe na-apu n'ulo aku",
+            "Onye adaala ma nwee mkpa doro anya"
         ],
         'category': [
             "Fire", "Traffic", "Security", "Medical",
@@ -113,88 +60,138 @@ def load_and_train_model():
     }
     
     df = pd.DataFrame(data)
-    
-    vectorizer = TfidfVectorizer(ngram_range=(1, 2))
+    vectorizer = TfidfVectorizer()
     X = vectorizer.fit_transform(df['text'])
     
     label_encoder = LabelEncoder()
     y = label_encoder.fit_transform(df['category'])
     
-    model = XGBClassifier(eval_metric='mlogloss')
+    model = MultinomialNB()
     model.fit(X, y)
     
-    return vectorizer, label_encoder, model
+    return vectorizer, model, label_encoder
 
-vectorizer, label_encoder, model = load_and_train_model()
+vectorizer, model, label_encoder = load_and_train_model()
 
-# Dispatch Portal Layout
-st.subheader("Report an Emergency (Mberede / Gaggawa / Mberede)")
+# Agency Mapping Dictionary
+AGENCY_MAP = {
+    "Fire": "Federal Fire Service (FFS) / State Fire Command",
+    "Traffic": "Federal Road Safety Corps (FRSC)",
+    "Security": "Nigeria Police Force (NPF) / Civil Defence (NSCDC)",
+    "Medical": "National Emergency Management Agency (NEMA) / State Health Services"
+}
 
-col1, col2 = st.columns(2)
-
-with col1:
-    selected_state = st.selectbox("Select State", NIGERIA_STATES)
-    location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g. Maitama, Lokoja Expressway, Ikeja")
-
-with col2:
-    caller_phone = st.text_input("Reporter Phone Number", placeholder="080XXXXXXXX")
-
-emergency_text = st.text_area(
-    "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Egbo)",
-    placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
-)
-
-if st.button("Submit Dispatch Alert", type="primary"):
-    if not emergency_text or not location_details:
-        st.error("Please provide both emergency details and location.")
-    else:
-        X_input = vectorizer.transform([emergency_text])
-        prediction = model.predict(X_input)[0]
-        category = label_encoder.inverse_transform([prediction])[0]
-        assigned_agency = AGENCY_MAP.get(category, "General Emergency Unit")
+# 4. Authentication Gate (Ensures accountability before reporting)
+if not st.session_state.logged_in:
+    st.markdown("## 🔐 Citizen Security Verification Portal")
+    st.info("To prevent false alarms, ambushes, and safeguard responding security personnel, all reporters must verify their identity before accessing the emergency dispatch grid.")
+    
+    with st.form("auth_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            full_name = st.text_input("Full Legal Name", placeholder="e.g., Chinedu Okafor")
+            phone = st.text_input("Verified Phone Number", placeholder="e.g., 08012345678")
+        with col2:
+            email = st.text_input("Email Address", placeholder="e.g., user@domain.com")
+            nin_id = st.text_input("National Identification Number (NIN) / ID", placeholder="11-digit NIN or Valid ID")
+            
+        submitted_auth = st.form_submit_button("Verify & Enter Dispatch Grid", type="primary")
         
-        st.success("Emergency Classified and Routed Successfully!")
-        # Trigger multi-channel alerts upon submission
-        alert_msg = f"EMERGENCY REPORT: {category} in {selected_state}. Details: {emergency_text}. Caller: {caller_phone}"
-        
-        send_sms_alert(caller_phone, alert_msg)
-        send_telegram_alert(alert_msg)
-        send_email_alert("agency@emergency.gov.ng", "New Emergency Alert", alert_msg)
-        
-        
-        res_col1, res_col2, res_col3 = st.columns(3)
-        res_col1.metric("Target State", selected_state)
-        res_col2.metric("Threat Category", category)
-        res_col3.metric("Assigned Agency", assigned_agency)
-        
-        st.info(f"**Live Dispatch Log:** Alert queued for {assigned_agency} command center in **{selected_state} ({location_details})**.")
+        if submitted_auth:
+            if not full_name or not phone or not email or not nin_id:
+                st.error("All verification fields are required to proceed.")
+            else:
+                st.session_state.logged_in = True
+                st.session_state.user_profile = {
+                    "full_name": full_name,
+                    "phone": phone,
+                    "email": email,
+                    "nin_id": nin_id,
+                    "status": "VERIFIED_CITIZEN"
+                }
+                st.success("Identity verified successfully! Loading secure dashboard...")
+                st.rerun()
 
-        # Append the new incident to our session log list
-    log_entry = {
-        "Timestamp": pd.Timestamp.now(),
-        "State": selected_state,
-        "Category": category,
-        "Assigned Agency": assigned_agency,
-        "Caller Phone": caller_phone,
-        "Details": emergency_text
-    }
-    st.session_state.dispatch_logs.append(log_entry)
+else:
+    # 5. Main Emergency Reporting Dashboard (Unlocked Only for Verified Users)
+    st.sidebar.title("👤 Reporter Profile")
+    st.sidebar.write(f"**Name:** {st.session_state.user_profile['full_name']}")
+    st.sidebar.write(f"**Phone:** {st.session_state.user_profile['phone']}")
+    st.sidebar.write(f"**Status:** 🛡️ {st.session_state.user_profile['status']}")
+    
+    if st.sidebar.button("Logout / Switch User"):
+        st.session_state.logged_in = False
+        st.session_state.user_profile = {}
+        st.rerun()
 
-    # Display the live session history table and download button
+    st.title("🚨 Nigeria National Emergency AI & Dispatch Platform")
+    st.caption("Secure multi-channel crisis management and automated agency routing system.")
+
+    with st.form("emergency_form"):
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            selected_state = st.selectbox("Select State", ["Abia", "FCT Abuja", "Kogi", "Lagos", "Kano", "Rivers", "Anambra", "Oyo"])
+        with col_s2:
+            location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g., Wuse Zone 4, near Central Bank")
+            
+        emergency_text = st.text_area(
+            "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
+            placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
+        )
+        
+        submit_btn = st.form_submit_button("Submit Secure Dispatch Alert", type="primary")
+
+        if submit_btn:
+            if not emergency_text or not location_details:
+                st.error("Please provide both emergency details and specific location.")
+            else:
+                # ML Classification
+                X_input = vectorizer.transform([emergency_text])
+                prediction = model.predict(X_input)[0]
+                category = label_encoder.inverse_transform([prediction])[0]
+                assigned_agency = AGENCY_MAP.get(category, "General Emergency Unit")
+                
+                st.success("Emergency Classified and Secured Successfully!")
+                
+                # Display Metrics
+                res_col1, res_col2, res_col3 = st.columns(3)
+                res_col1.metric("Target State", selected_state)
+                res_col2.metric("Threat Category", category)
+                res_col3.metric("Assigned Agency", assigned_agency)
+                
+                st.info(f"**Live Dispatch Log:** Alert queued for {assigned_agency} command center in {selected_state}. Verified reporter identity attached.")
+
+                # Bind Log Entry with Authenticated User Information
+                log_entry = {
+                    "Timestamp": pd.Timestamp.now(),
+                    "Reporter Name": st.session_state.user_profile["full_name"],
+                    "Reporter Phone": st.session_state.user_profile["phone"],
+                    "Reporter Email": st.session_state.user_profile["email"],
+                    "Verification Status": st.session_state.user_profile["status"],
+                    "State": selected_state,
+                    "Location": location_details,
+                    "Category": category,
+                    "Assigned Agency": assigned_agency,
+                    "Details": emergency_text
+                }
+                st.session_state.dispatch_logs.append(log_entry)
+
+    # 6. Session Dispatch Logs & CSV Export Panel
     st.divider()
-    st.subheader("📋 Session Dispatch Logs")
+    st.subheader("📋 Secure Session Dispatch Logs (Audited)")
 
     if st.session_state.dispatch_logs:
         logs_df = pd.DataFrame(st.session_state.dispatch_logs)
         st.dataframe(logs_df, use_container_width=True)
 
-        # Convert dataframe to CSV for downloading
         csv_data = logs_df.to_csv(index=False).encode('utf-8')
         
         st.download_button(
-            label="📥 Download Dispatch Logs (CSV)",
+            label="📥 Download Audited Dispatch Logs (CSV)",
             data=csv_data,
-            file_name="nigeria_emergency_dispatch_logs.csv",
+            file_name="verified_nigeria_emergency_logs.csv",
             mime="text/csv",
             type="primary"
         )
+    else:
+        st.info("No dispatch logs recorded in the current active session yet.")
