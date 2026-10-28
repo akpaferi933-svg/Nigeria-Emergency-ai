@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Approximate State Center Coordinates for Cross-Referencing
+# Precise State Center Coordinates for Nigeria
 STATE_COORDINATES = {
     "Abia": [5.5320, 7.4860], "Adamawa": [9.3265, 12.3984], "Akwa Ibom": [5.0377, 7.9128],
     "Anambra": [6.2209, 6.9370], "Bauchi": [10.3158, 9.8442], "Bayelsa": [4.7719, 6.0699],
@@ -40,7 +40,8 @@ if "user_profile" not in st.session_state:
 if "dispatch_logs" not in st.session_state:
     st.session_state.dispatch_logs = []
 if "map_data" not in st.session_state:
-    st.session_state.map_data = pd.DataFrame(columns=["lat", "lon"])
+    # Initialize with Nigeria's center so the map zooms correctly into Nigeria
+    st.session_state.map_data = pd.DataFrame({"lat": [9.0765], "lon": [7.3986]})
 
 # 3. Multi-Lingual Threat Engine
 @st.cache_resource
@@ -86,18 +87,18 @@ AGENCY_MAP = {
     "Medical": "National Emergency Management Agency (NEMA) / Health Services"
 }
 
-# 4. Mode Selection (Citizen Reporter Portal vs. Security Command Center)
+# 4. Sidebar Mode Selection
 st.sidebar.title("🛡️ Platform Access Mode")
 portal_mode = st.sidebar.radio("Select Portal", ["Citizen Dispatch Portal", "Agency Tactical Command Dashboard"])
 
 # =====================================================================
-# PORTAL MODE 1: CITIZEN DISPATCH PORTAL (WITH DUAL-LOCATION VERIFICATION)
+# PORTAL MODE 1: CITIZEN DISPATCH PORTAL
 # =====================================================================
 if portal_mode == "Citizen Dispatch Portal":
 
     if not st.session_state.logged_in:
         st.markdown("## 🔐 Citizen Security Verification Portal")
-        st.info("Identity binding is mandatory to prevent false alarms, security setups, and protect responding tactical units.")
+        st.info("Identity binding is mandatory to prevent false alarms and safeguard responding tactical units.")
         
         with st.form("auth_form"):
             col1, col2 = st.columns(2)
@@ -141,7 +142,6 @@ if portal_mode == "Citizen Dispatch Portal":
         st.subheader("1. Automatic Device Location Capture")
         st.write("Capture your current GPS location to cross-reference with your declared emergency location:")
         
-        # Capture exact physical device coordinates
         device_location = streamlit_geolocation()
         
         user_lat = device_location.get("latitude") if device_location else None
@@ -173,21 +173,17 @@ if portal_mode == "Citizen Dispatch Portal":
                 if not emergency_text or not claimed_location:
                     st.error("Please fill in both the location details and incident description.")
                 else:
-                    # ML Threat Classification
                     X_input = vectorizer.transform([emergency_text])
                     prediction = model.predict(X_input)[0]
                     category = label_encoder.inverse_transform([prediction])[0]
                     assigned_agency = AGENCY_MAP.get(category, "General Security Command")
 
-                    # DUAL-LOCATION VERIFICATION ALGORITHM
                     state_base_coords = STATE_COORDINATES.get(claimed_state, [9.0765, 7.3986])
                     
                     if user_lat and user_lon:
-                        # Calculate rough spatial offset between state center and device position
                         lat_diff = abs(user_lat - state_base_coords[0])
                         lon_diff = abs(user_lon - state_base_coords[1])
                         
-                        # Threshold for cross-state discrepancy flag (~2.5 degrees ~ 250km)
                         if lat_diff > 2.5 or lon_diff > 2.5:
                             verification_flag = "🚨 SUSPECTED FALSE ALARM / LOCATION MISMATCH"
                             flag_color = "error"
@@ -203,7 +199,6 @@ if portal_mode == "Citizen Dispatch Portal":
                         actual_lat = state_base_coords[0]
                         actual_lon = state_base_coords[1]
 
-                    # Display Verification Output
                     st.success(f"Emergency Alert Routed to **{assigned_agency}**")
                     
                     if flag_color == "error":
@@ -217,7 +212,6 @@ if portal_mode == "Citizen Dispatch Portal":
                     new_point = pd.DataFrame({"lat": [actual_lat], "lon": [actual_lon]})
                     st.session_state.map_data = pd.concat([st.session_state.map_data, new_point], ignore_index=True)
 
-                    # Store Log Entry with Full Audit Details
                     log_entry = {
                         "Timestamp": pd.Timestamp.now(),
                         "Reporter Name": st.session_state.user_profile["full_name"],
@@ -235,16 +229,32 @@ if portal_mode == "Citizen Dispatch Portal":
                     }
                     st.session_state.dispatch_logs.append(log_entry)
 
-        # Map View
+        # Map View (Focused on Nigeria)
         st.divider()
-        st.subheader("🗺️ Live Threat Heatmap")
-        if not st.session_state.map_data.empty:
-            st.map(st.session_state.map_data)
+        st.subheader("🗺️ Live National Threat Heatmap")
+        st.map(st.session_state.map_data, zoom=6)
+
+        # RECORD-KEEPING & CSV EXPORT TABLE RESTORED HERE
+        st.divider()
+        st.subheader("📋 Audited Grassroots Intelligence Logs & Record Keeping")
+
+        if st.session_state.dispatch_logs:
+            logs_df = pd.DataFrame(st.session_state.dispatch_logs)
+            st.dataframe(logs_df, use_container_width=True)
+
+            csv_data = logs_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Audited Intelligence Logs (CSV)",
+                data=csv_data,
+                file_name="verified_nigeria_security_dispatch_logs.csv",
+                mime="text/csv",
+                type="primary"
+            )
         else:
-            st.info("No active map markers yet. Submit an alert above to render pins.")
+            st.info("No dispatch logs recorded in the current active session yet.")
 
 # =====================================================================
-# PORTAL MODE 2: AGENCY TACTICAL COMMAND DASHBOARD (ADMIN VIEW)
+# PORTAL MODE 2: AGENCY TACTICAL COMMAND DASHBOARD
 # =====================================================================
 else:
     st.title("🛡️ National Security Tactical Command Center")
@@ -267,7 +277,6 @@ else:
     if st.session_state.dispatch_logs:
         logs_df = pd.DataFrame(st.session_state.dispatch_logs)
 
-        # Filter logs based on agency selection
         if agency_filter != "All Agencies (National Intelligence Command)":
             filtered_df = logs_df[logs_df["Assigned Agency"] == agency_filter]
         else:
@@ -277,7 +286,6 @@ else:
 
         if not filtered_df.empty:
             for idx, row in filtered_df.iterrows():
-                # Color code based on audit flag
                 if "SUSPECTED FALSE ALARM" in row["Verification Flag"]:
                     st.error(f"🚨 **[STAGED SETUP WARNING]** Incident #{idx+1} - {row['Threat Category']} in {row['Declared State']}")
                 else:
@@ -299,7 +307,6 @@ else:
                 st.write(f"**Incident Description:** *\"{row['Incident Details']}\"*")
                 st.divider()
 
-            # CSV Intelligence Export
             csv_data = filtered_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Export Classified Tactical Intelligence Report (CSV)",
