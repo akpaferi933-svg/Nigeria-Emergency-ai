@@ -6,8 +6,6 @@ from sklearn.preprocessing import LabelEncoder
 import requests
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
 
 # Page Configuration
 st.set_page_config(page_title="Nigeria National Emergency AI", page_icon="🇳🇬", layout="wide")
@@ -70,6 +68,10 @@ AGENCY_MAP = {
     "Medical": "National Emergency Management Agency (NEMA) / State Health Services"
 }
 
+# Initialize session state for logs
+if "dispatch_logs" not in st.session_state:
+    st.session_state.dispatch_logs = []
+
 # Load and Train Multi-Lingual Engine
 @st.cache_resource
 def load_and_train_model():
@@ -128,26 +130,21 @@ vectorizer, label_encoder, model = load_and_train_model()
 # Dispatch Portal Layout
 st.subheader("Report an Emergency (Mberede / Gaggawa / Mberede)")
 
-# Wrap everything in a Streamlit Form
-with st.form("emergency_dispatch_form"):
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        selected_state = st.selectbox("Select State", NIGERIA_STATES)
-        location_details = st.text_input("LGA / Specific Location Details")
-        
-    with col2:
-        caller_phone = st.text_input("Reporter Phone Number", placeholder="080XXXXXXXX")
-        
-    emergency_text = st.text_area(
-        "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Igbo)",
-        placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
-    )
-    
-    # Use form submit button instead of regular button
-    submitted = st.form_submit_button("Submit Dispatch Alert", type="primary")
+col1, col2 = st.columns(2)
 
-if submitted:
+with col1:
+    selected_state = st.selectbox("Select State", NIGERIA_STATES)
+    location_details = st.text_input("LGA / Specific Location Details", placeholder="e.g. Maitama, Lokoja Expressway, Ikeja")
+
+with col2:
+    caller_phone = st.text_input("Reporter Phone Number", placeholder="080XXXXXXXX")
+
+emergency_text = st.text_area(
+    "Describe the Emergency (English, Pidgin, Hausa, Yoruba, Egbo)",
+    placeholder="e.g., Motors don jam for road OR Ina bukatan taimako gobiya..."
+)
+
+if st.button("Submit Dispatch Alert", type="primary"):
     if not emergency_text or not location_details:
         st.error("Please provide both emergency details and location.")
     else:
@@ -157,19 +154,47 @@ if submitted:
         assigned_agency = AGENCY_MAP.get(category, "General Emergency Unit")
         
         st.success("Emergency Classified and Routed Successfully!")
-        
+        # Trigger multi-channel alerts upon submission
         alert_msg = f"EMERGENCY REPORT: {category} in {selected_state}. Details: {emergency_text}. Caller: {caller_phone}"
         
         send_sms_alert(caller_phone, alert_msg)
         send_telegram_alert(alert_msg)
-        send_email_alert(selected_state, category, emergency_text)
-
-
+        send_email_alert("agency@emergency.gov.ng", "New Emergency Alert", alert_msg)
         
-        # Indent these so they show up after submission
+        
         res_col1, res_col2, res_col3 = st.columns(3)
         res_col1.metric("Target State", selected_state)
         res_col2.metric("Threat Category", category)
         res_col3.metric("Assigned Agency", assigned_agency)
         
         st.info(f"**Live Dispatch Log:** Alert queued for {assigned_agency} command center in **{selected_state} ({location_details})**.")
+
+        # Append the new incident to our session log list
+    log_entry = {
+        "Timestamp": pd.Timestamp.now(),
+        "State": selected_state,
+        "Category": category,
+        "Assigned Agency": assigned_agency,
+        "Caller Phone": caller_phone,
+        "Details": emergency_text
+    }
+    st.session_state.dispatch_logs.append(log_entry)
+
+    # Display the live session history table and download button
+    st.divider()
+    st.subheader("📋 Session Dispatch Logs")
+
+    if st.session_state.dispatch_logs:
+        logs_df = pd.DataFrame(st.session_state.dispatch_logs)
+        st.dataframe(logs_df, use_container_width=True)
+
+        # Convert dataframe to CSV for downloading
+        csv_data = logs_df.to_csv(index=False).encode('utf-8')
+        
+        st.download_button(
+            label="📥 Download Dispatch Logs (CSV)",
+            data=csv_data,
+            file_name="nigeria_emergency_dispatch_logs.csv",
+            mime="text/csv",
+            type="primary"
+        )
