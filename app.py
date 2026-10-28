@@ -11,90 +11,132 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Complete National Geography Database for all 37 Regions (36 States + FCT)
-@st.cache_data
-def load_national_geography():
-    states_list = [
-        "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", 
-        "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", 
-        "FCT Abuja", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", 
-        "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", 
-        "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", 
-        "Yobe", "Zamfara"
-    ]
-    
-    # Comprehensive master list covering detailed records for Kogi and major states, plus dynamic auto-fill for every other state
-    data = []
-    
-    # Kogi's official LGAs & Wards
-    kogi_lgas = {
-        "Adavi": ["Adavi-Eba", "Eganyi", "Ozuja", "Okunchi", "Ogaminana", "Uboro", "Osara", "Akoro"],
-        "Ajaokuta": ["Ajaokuta", "Gegu Beki I", "Gegu Beki II", "Ebi Ebi", "Itobe", "Odin", "Adogo", "Patesi"],
-        "Ankpa": ["Ankpa Town I", "Ankpa Town II", "Ankpa Town III", "Enjema I", "Enjema II", "Ojoku", "Olubo", "Amoke"],
-        "Bassa": ["Aguma", "Akoko", "Ayede", "Bassa Komu", "Kpanche", "Mozum", "Edegbe", "Ofuloko"],
-        "Dekina": ["Dekina Town", "Agojeju-Omi", "Biraidu I", "Biraidu II", "Okura", "Ogbababa", "Effoi", "Eme", "Emere"],
-        "Ibaji": ["Ajaka", "Akpanya", "Odeke", "Echeno", "Iregwu", "Onyedega", "Anie", "Ikah"],
-        "Idah": ["Ega I", "Ega II", "Anana", "Igbagala", "Ochadamu", "Okenya", "Odolu", "Ugwolawo"],
-        "Igalamela Odolu": ["Ajaka I", "Ajaka II", "Odolu I", "Odolu II", "Avrugo", "Ofuloko", "Okpo"],
-        "Ijumu": ["Aiyetoro I", "Aiyetoro II", "Iffe", "Egbeda", "Okedayo", "Ogidi", "Iluagba", "Iyah"],
-        "Kabba/Bunu": ["Kabba Ward I", "Kabba Ward II", "Kabba Ward III", "Bunu North", "Bunu South", "Odo-Ape", "Kakun"],
-        "Koton Karfe": ["Koton Karfe I", "Koton Karfe II", "Zangon Daji", "Ede", "Ahoko", "Gegu"],
-        "Lokoja": ["Ajaokuta Road", "Cabba/Lokoja", "Ganaja", "Felele", "Old Market", "Wafasi", "Ward 'A'", "Ward 'B'"],
-        "Mopa Muro": ["Mopa I", "Mopa II", "Muro I", "Muro II", "Okeredia", "Amuro"],
-        "Ofu": ["Alooji", "Ejule", "Ugwolawo", "Ogbigo", "Okura-Ofe", "Ibado", "Ogbonicha"],
-        "Ogori/Magongo": ["Aiyeromi", "Okesi", "Okibo", "Ugbenuka", "Magongo I", "Magongo II"],
-        "Okehi": ["Eika-Ohizenyi", "Eika-Chachangi", "Obangede", "Okaito", "Uboro", "Ohema"],
-        "Okene": ["Okeneba", "Bariki", "Obehira", "Eika", "Uboro", "Okene Town I", "Okene Town II", "Ozuja"],
-        "Olamaboro": ["Okpo", "Okoloke", "Ogugu I", "Ogugu II", "Imane I", "Imane II", "Effoi"],
-        "Omala": ["Abejukolo", "Bagana", "Ogodu", "Okpatikpi", "Ofuloko", "Igali"],
-        "Yagba East": ["Isanlu I", "Isanlu II", "Ife", "Ejuku", "Jege", "Bagido", "Pujaka"],
-        "Yagba West": ["Odo-Eri", "Omi", "Egbe I", "Egbe II", "Okeredia", "Odo-Ara", "Akutan"]
+# Comprehensive State, LGA & Ward Mapping Matrix for Precision Security Routing
+NIGERIA_GEOGRAPHY = {
+    "Abia": {
+        "Aba North": ["Ariaria Ward 1", "Eziukwu Ward", "Osusu Ward", "Industrial Ward"],
+        "Aba South": ["Ekeoha Ward", "Eziama Ward", "Nsulu Ward", "Ohazu Ward"],
+        "Umuahia North": ["Umuahia Urban", "Ndume", "Okwu Ibeku", "Umuaka"],
+        "Umuahia South": ["Apumiri", "Old Umuahia", "Umuopara", "Ezeleke"]
+    },
+    "FCT Abuja": {
+        "Municipal Area Council (AMAC)": [
+            "Central Business District", "Garki Ward", "Wuse Ward", "Maitama Ward", 
+            "Asokoro Ward", "Gwarinpa Ward", "Nyanya Ward", "Karu Ward", "Jabi Ward"
+        ],
+        "Bwari": ["Bwari Central", "Usuma", "Duste", "Byazhin", "Kuduru"],
+        "Gwagwalada": ["Gwagwalada Central", "Zuba", "Kankia", "Dobi", "Ibwa"],
+        "Kuje": ["Kuje Central", "Gbaupe", "Chibiri", "Kabi", "Rubochi"],
+        "Kwali": ["Kwali Central", "Gumbo", "Kilankwa", "Wako", "Ashara"],
+        "Abaji": ["Abaji Central", "Agyana", "Nuku", "Yaba", "Manderegi"]
+    },
+    "Kogi": {
+        "Lokoja": ["Ajaokuta Road", "Cabba/Lokoja", "Ganaja", "Felele", "Old Market", "Wafasi"],
+        "Okene": ["Okeneba", "Bariki", "Obehira", "Eika", "Uboro"],
+        "Kabba/Bunu": ["Kabba Ward I", "Kabba Ward II", "Bunu Central", "Odo-Ape"],
+        "Idah": ["Idah Ward I", "Idah Ward II", "Ekpachala", "Odolu"]
+    },
+    "Lagos": {
+        "Alimosho": ["Ipaja", "Ayobo", "Egbe", "Idimu", "Akowonjo", "Egbeda"],
+        "Ikeja": ["Alausa", "Ogba", "GRA Ikeja", "Agidingbi", "Ojodu", "Computer Village"],
+        "Eti-Osa": ["Victoria Island", "Ikoyi", "Lekki Phase 1", "Ajah", "Maroko"],
+        "Lagos Island": ["Epetedo", "Olowogbowo", "Isale Eko", "Marina", "Lagos Central"],
+        "Surulere": ["Aguda", "Ijeshatedo", "Itire", "Orile", "Adeniran Ogunsanya"]
+    },
+    "Kano": {
+        "Kano Municipal": ["Sharada", "Zage", "Kwala", "Sheshe", "Jakara", "Gwale"],
+        "Fagge": ["Fagge Ward", "Yamma", "Kafin Hausa", "Rijiyar Zaki"],
+        "Nassarawa": ["Giginyu", "Kaura Goje", "Dakata", "Tudun Wada"],
+        "Dala": ["Dala", "Kofar Famfo", "Gwamaja", "Yalwa"]
+    },
+    "Rivers": {
+        "Port Harcourt": ["Township", "Diobu", "Rumueme", "GRA", "Amadi Flat", "Borikiri"],
+        "Obio/Akpor": ["Rumuodumaya", "Rumumasi", "Rumuokoro", "Rukpoku", "Eliozu"],
+        "Ikwerre": ["Isiokpo", "Aluu", "Omagwa", "Elele", "Igwuruta"]
+    },
+    "Kaduna": {
+        "Kaduna North": ["Kawo", "Badiko", "Sabon Gari", "Ungwan Rimi", "Barnawa"],
+        "Kaduna South": ["Kakuri", "Makera", "Tudun Wada", "Television"],
+        "Birnin Gwari": ["Birnin Gwari Central", "Kakangi", "Kurgwi", "Randali", "Tabanni"]
+    },
+    "Oyo": {
+        "Ibadan North": ["Bodija", "Sango", "Mokola", "Agbowo", "Samonda"],
+        "Ibadan South-West": ["Ring Road", "Oke-Ado", "Alebiosu", "Eleyele"],
+        "Oyo West": ["Oke-Oogun", "Ajagba", "Isale Oyo"]
     }
-    
-    for lga, wards in kogi_lgas.items():
-        for w in wards:
-            data.append({"State": "Kogi", "LGA": lga, "Ward": w})
-            
-    # Auto-populate structure for all other 36 states so none are missing
-    for st_name in states_list:
-        if st_name == "Kogi":
-            continue
-        for i in range(1, 6): # Generates 5 standard representative LGAs per state
-            lga_name = f"{st_name} LGA Area {i}"
-            for j in range(1, 5): # Generates 4 wards per LGA
-                ward_name = f"Ward {j} ({st_name})"
-                data.append({"State": st_name, "LGA": lga_name, "Ward": ward_name})
-                
-    return pd.DataFrame(data)
+}
 
-geo_df = load_national_geography()
+# Fallback helper for any unlisted LGA/Wards across the 37 regions
+def get_lgas_for_state(state):
+    if state in NIGERIA_GEOGRAPHY:
+        return list(NIGERIA_GEOGRAPHY[state].keys())
+    return [f"{state} Central LGA", f"{state} North LGA", f"{state} South LGA"]
 
-# 3. Initialize Session State
+def get_wards_for_lga(state, lga):
+    if state in NIGERIA_GEOGRAPHY and lga in NIGERIA_GEOGRAPHY[state]:
+        return NIGERIA_GEOGRAPHY[state][lga]
+    return ["Ward 1 (Central)", "Ward 2 (North)", "Ward 3 (South)", "Ward 4 (Periphery)"]
+
+# State Approximate Coordinates for Geo-Spatial Mapping
+STATE_COORDINATES = {
+    "Abia": [5.5320, 7.4860], "Adamawa": [9.3265, 12.3984], "Akwa Ibom": [5.0377, 7.9128],
+    "Anambra": [6.2209, 6.9370], "Bauchi": [10.3158, 9.8442], "Bayelsa": [4.7719, 6.0699],
+    "Benue": [7.7304, 8.5241], "Borno": [11.8333, 13.1500], "Cross River": [5.9631, 8.3373],
+    "Delta": [5.8904, 5.6800], "Ebonyi": [6.2649, 8.0137], "Edo": [6.3350, 5.6037],
+    "Ekiti": [7.6210, 5.2201], "Enugu": [6.4584, 7.5464], "FCT Abuja": [9.0765, 7.3986],
+    "Gombe": [10.2897, 11.1673], "Imo": [5.4832, 7.0358], "Jigawa": [12.2280, 9.5616],
+    "Kaduna": [10.5105, 7.4165], "Kano": [12.0022, 8.5919], "Katsina": [12.9887, 7.6009],
+    "Kebbi": [12.4539, 4.1975], "Kogi": [7.7337, 6.6906], "Kwara": [8.4799, 4.5418],
+    "Lagos": [6.5244, 3.3792], "Nasarawa": [8.4998, 8.5153], "Niger": [9.9309, 5.5983],
+    "Ogun": [7.1604, 3.3483], "Ondo": [7.2571, 5.2058], "Osun": [7.5629, 4.5200],
+    "Oyo": [7.8430, 3.9368], "Plateau": [9.8965, 8.8583], "Rivers": [4.8156, 7.0498],
+    "Sokoto": [13.0627, 5.2339], "Taraba": [7.8704, 9.7800], "Yobe": [12.0000, 11.5000],
+    "Zamfara": [12.1702, 6.6641]
+}
+
+NIGERIA_STATES_FCT = sorted(list(STATE_COORDINATES.keys()))
+
+# 2. Initialize Session State
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_profile" not in st.session_state:
     st.session_state.user_profile = {}
 if "dispatch_logs" not in st.session_state:
     st.session_state.dispatch_logs = []
+if "map_data" not in st.session_state:
+    st.session_state.map_data = pd.DataFrame(columns=["lat", "lon"])
 
-# 4. Load and Train Threat Classification Engine
+# 3. Load and Train Threat Classification Engine
 @st.cache_resource
 def load_and_train_model():
-    training_data = {
+    data = {
         'text': [
             "Bandits have invaded our village shooting guns and kidnapping people",
             "Gunmen abduct school children and take them to the bush",
+            "Armed men entered the community and started kidnapping residents",
+            "Yan bindiga sun shigo kauyen mu suna sace mutane da bindiga",
+            "Awon kidnappers ti gbe awon eniyan lo si igbo",
+            "Ndị ohi ji egbe tọọrọ mmadụ n'obodo anyị",
             "Armed robbery ongoing near the commercial bank",
+            "Thieves break into houses with weapons shooting sporadically",
+            "Awon ole nbonilowo ni ile ifowopamo pẹlu ibọn",
             "Fire outbreak in the residential building",
+            "Inferno burning down market stalls and shops",
+            "Ina njo ile ni agbegbe wa",
             "Multiple car crash on the expressway blood dey flow",
-            "Person collapsed and needs immediate medical response"
+            "Trailer somersaulted blocking the main highway",
+            "Person collapsed and needs immediate medical response",
+            "Severe cholera outbreak and people fainting"
         ],
         'category': [
-            "Kidnapping & Banditry", "Kidnapping & Banditry",
-            "Armed Robbery", "Fire", "Traffic", "Medical"
+            "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry",
+            "Armed Robbery", "Armed Robbery", "Armed Robbery",
+            "Fire", "Fire", "Fire",
+            "Traffic", "Traffic",
+            "Medical", "Medical"
         ]
     }
-    df = pd.DataFrame(training_data)
+    df = pd.DataFrame(data)
     vectorizer = TfidfVectorizer()
     X = vectorizer.fit_transform(df['text'])
     label_encoder = LabelEncoder()
@@ -113,7 +155,7 @@ AGENCY_MAP = {
     "Medical": "National Emergency Management Agency (NEMA) / Health Services"
 }
 
-# 5. Authentication Gate
+# 4. Authentication Gate
 if not st.session_state.logged_in:
     st.markdown("## 🔐 Citizen Security Verification Portal")
     st.info("Identity binding is mandatory to prevent false alarms, malicious setups, and secure responding security forces.")
@@ -142,7 +184,7 @@ if not st.session_state.logged_in:
                 st.rerun()
 
 else:
-    # 6. Main Dashboard with Cascading Filters for All 37 Regions
+    # 5. Main Dashboard
     st.sidebar.title("👤 Reporter Profile")
     st.sidebar.write(f"**Name:** {st.session_state.user_profile['full_name']}")
     st.sidebar.write(f"**Phone:** {st.session_state.user_profile['phone']}")
@@ -158,21 +200,14 @@ else:
 
     with st.form("emergency_form"):
         col1, col2, col3 = st.columns(3)
-        
         with col1:
-            # All 37 regions available alphabetically
-            states_list = sorted(geo_df["State"].unique().tolist())
-            selected_state = st.selectbox("1. Select State / FCT", states_list)
-            
+            selected_state = st.selectbox("1. Select State / FCT", NIGERIA_STATES_FCT)
         with col2:
-            # Dynamically filters LGAs for whichever state is picked
-            lgas_list = sorted(geo_df[geo_df["State"] == selected_state]["LGA"].unique().tolist())
-            selected_lga = st.selectbox("2. Select Local Government Area (LGA)", lgas_list)
-            
+            available_lgas = get_lgas_for_state(selected_state)
+            selected_lga = st.selectbox("2. Select Local Government Area (LGA)", available_lgas)
         with col3:
-            # Dynamically filters Wards for whichever LGA is picked
-            wards_list = sorted(geo_df[(geo_df["State"] == selected_state) & (geo_df["LGA"] == selected_lga)]["Ward"].unique().tolist())
-            selected_ward = st.selectbox("3. Select Electoral Ward / Community", wards_list)
+            available_wards = get_wards_for_lga(selected_state, selected_lga)
+            selected_ward = st.selectbox("3. Select Electoral Ward / Community", available_wards)
 
         landmark_details = st.text_input("Specific Landmark / Street Details", placeholder="e.g., Close to Central Market junction")
         emergency_text = st.text_area("Describe the Emergency", placeholder="e.g., Bandits don enter village OR Fire outbreak...")
@@ -200,6 +235,14 @@ else:
                 
                 st.warning(f"📍 **Precise Location Lock:** [{selected_state} State ➔ {selected_lga} LGA ➔ {selected_ward} Ward]. Reporter **{st.session_state.user_profile['full_name']}** (Phone: {st.session_state.user_profile['phone']}) permanently bound to audit log.")
 
+                # Update Map Data with slight offset for visibility
+                base_coords = STATE_COORDINATES.get(selected_state, [9.0765, 7.3986])
+                offset_lat = base_coords[0] + (hash(selected_lga) % 100) * 0.001
+                offset_lon = base_coords[1] + (hash(selected_ward) % 100) * 0.001
+                
+                new_point = pd.DataFrame({"lat": [offset_lat], "lon": [offset_lon]})
+                st.session_state.map_data = pd.concat([st.session_state.map_data, new_point], ignore_index=True)
+
                 # Save Log
                 log_entry = {
                     "Timestamp": pd.Timestamp.now(),
@@ -215,6 +258,14 @@ else:
                     "Details": emergency_text
                 }
                 st.session_state.dispatch_logs.append(log_entry)
+
+    # 6. Real-Time Geo-Spatial Precision Heatmap
+    st.divider()
+    st.subheader("🗺️ Live Grassroots Geo-Spatial Threat Heatmap")
+    if not st.session_state.map_data.empty:
+        st.map(st.session_state.map_data)
+    else:
+        st.info("Map standby: Submit an emergency report above to render live grassroots threat location pins.")
 
     # 7. Audited Intelligence Logs & CSV Export
     st.divider()
