@@ -40,32 +40,59 @@ if "user_profile" not in st.session_state:
 if "dispatch_logs" not in st.session_state:
     st.session_state.dispatch_logs = []
 if "map_data" not in st.session_state:
-    # Initialize with Nigeria's center so the map zooms correctly into Nigeria
     st.session_state.map_data = pd.DataFrame({"lat": [9.0765], "lon": [7.3986]})
 
-# 3. Multi-Lingual Threat Engine
+# 3. Expanded Multi-Lingual & Multi-Category Threat Engine
 @st.cache_resource
 def load_and_train_model():
     data = {
         'text': [
+            # Kidnapping & Banditry
             "Bandits have invaded our village shooting guns and kidnapping people",
             "Gunmen abduct school children and take them to the bush",
             "Yan bindiga sun shigo kauyen mu suna sace mutane da bindiga",
             "Awon kidnappers ti gbe awon eniyan lo si igbo",
             "Ndị ohi ji egbe tọọrọ mmadụ n'obodo anyị",
+            "Bad boys carry gun enter community dey kidnap pipu for bush",
+            
+            # Armed Robbery
             "Armed robbery ongoing near the commercial bank",
             "Thieves break into houses with weapons shooting sporadically",
+            "Awon ole nbonilowo ni ile ifowopamo pẹlu ibọn",
+            "Yan fashi suna harbi a kasuwa suna satar kayayyaki",
+            "Ohi ji egbe na-apu n'ulo aku",
+            "Bad boys dey roba shop with gun for junction",
+
+            # Fire
             "Fire outbreak in the residential building",
             "Inferno burning down market stalls and shops",
+            "Ina njo ile ni agbegbe wa",
+            "Gobiya tana cin ginin gidaje",
+            "Akwukwo oku na-agba na ulo",
+            "Fire deh burn house serious for street",
+
+            # Traffic / Accident
             "Multiple car crash on the expressway blood dey flow",
-            "Person collapsed and needs immediate medical response"
+            "Trailer somersaulted blocking the main highway",
+            "Oti wa ijamba oko lori titi",
+            "Hatsarin mota ya faru a babban kwanji",
+            "Iberibe okporo uzu mere na express",
+            "Motors don jam themselves for road accident",
+
+            # Medical
+            "Person collapsed and needs immediate medical response",
+            "Severe cholera outbreak and people fainting",
+            "Eyan kan ti gbe emi mi leri aisan gbona",
+            "Mutum ya yanke jiki ya fadi yana bukatan likita",
+            "Onye adaala ma nwee mkpa doro anya",
+            "Person don faint heavily he no dey breathe well"
         ],
         'category': [
-            "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry",
-            "Armed Robbery", "Armed Robbery",
-            "Fire", "Fire",
-            "Traffic",
-            "Medical"
+            "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry", "Kidnapping & Banditry",
+            "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery", "Armed Robbery",
+            "Fire", "Fire", "Fire", "Fire", "Fire", "Fire",
+            "Traffic", "Traffic", "Traffic", "Traffic", "Traffic", "Traffic",
+            "Medical", "Medical", "Medical", "Medical", "Medical", "Medical"
         ]
     }
     df = pd.DataFrame(data)
@@ -164,7 +191,7 @@ if portal_mode == "Citizen Dispatch Portal":
 
             emergency_text = st.text_area(
                 "Describe the Incident (English, Pidgin, Hausa, Yoruba, Igbo)",
-                placeholder="e.g., Bandits don enter village OR Fire outbreak for market..."
+                placeholder="e.g., Fire outbreak for market OR Motors don jam for road OR Bandits don enter..."
             )
 
             submit_btn = st.form_submit_button("Transmit Verified Emergency Alert", type="primary")
@@ -229,12 +256,12 @@ if portal_mode == "Citizen Dispatch Portal":
                     }
                     st.session_state.dispatch_logs.append(log_entry)
 
-        # Map View (Focused on Nigeria)
+        # Map View
         st.divider()
         st.subheader("🗺️ Live National Threat Heatmap")
         st.map(st.session_state.map_data, zoom=6)
 
-        # RECORD-KEEPING & CSV EXPORT TABLE RESTORED HERE
+        # RECORD-KEEPING & CSV EXPORT TABLE
         st.divider()
         st.subheader("📋 Audited Grassroots Intelligence Logs & Record Keeping")
 
