@@ -1,1 +1,15 @@
-
+{
+  "name": "Nigeria National Emergency AI",
+  "short_name": "Nigeria Emergency",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1117",
+  "theme_color": "#ff4b4b",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/512/emergency-exit.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
