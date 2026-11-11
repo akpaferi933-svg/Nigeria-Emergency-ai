@@ -5,6 +5,25 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import LabelEncoder
 from streamlit_geolocation import streamlit_geolocation
+import sqlite3
+import pandas as pd
+
+# Connect to your SQLite database for handling the 530,000+ rows efficiently
+def get_db_connection():
+    conn = sqlite3.connect("nigeria_emergency_master.db", check_same_thread=False)
+    return conn
+
+# Example of how to query data safely without crashing memory
+def load_filtered_data(reason_filter, limit=1000):
+    conn = get_db_connection()
+    query = """
+        SELECT lat, lng, desc, title, timeStamp, Reason, Year, Hour 
+        FROM incidents_master 
+        WHERE Reason = ? 
+        LIMIT ?
+    """
+    df = pd.read_sql_query(query, conn, params=(reason_filter, limit))
+    return df
 
 # 1. Page Configuration
 st.set_page_config(
