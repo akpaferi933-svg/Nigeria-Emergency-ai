@@ -7,6 +7,47 @@ from sklearn.preprocessing import LabelEncoder
 from streamlit_geolocation import streamlit_geolocation
 import sqlite3
 import pandas as pd
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_instant_email_alert(agency, state, landmark, description, lat, lon):
+    try:
+        sender_email = st.secrets["SENDER_EMAIL"]
+        sender_password = st.secrets["SENDER_PASSWORD"]
+        recipient_email = st.secrets["ALERT_RECIPIENT_EMAIL"]
+
+        msg = MIMEMultipart()
+        msg["From"] = f"Nigeria Emergency AI <{sender_email}>"
+        msg["To"] = recipient_email
+        msg["Subject"] = f"🚨 URGENT DISPATCH [{agency}]: {state} - {landmark}"
+
+        maps_link = f"https://www.google.com/maps?q={lat},{lon}" if lat and lon else "GPS Not Locked"
+
+        body = f"""
+VERIFIED EMERGENCY INCIDENT REPORT
+=========================================
+Routed Agency: {agency}
+State: {state}
+Landmark / LGA: {landmark}
+Incident Description: {description}
+
+LIVE GPS VERIFICATION
+Latitude: {lat}
+Longitude: {lon}
+Google Maps Pin: {maps_link}
+=========================================
+Generated automatically by Nigeria Emergency AI Command System.
+"""
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Email dispatch error: {e}")
+        return False
 
 # Connect to your SQLite database for handling the 530,000+ rows efficiently
 def get_db_connection():
