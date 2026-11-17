@@ -316,6 +316,16 @@ if portal_mode == "Citizen Dispatch Portal":
                     }
                     st.session_state.dispatch_logs.append(log_entry)
 
+        # Trigger instant email dispatch
+        send_instant_email_alert(
+            agency=assigned_agency,
+            state="Nigeria Incident",
+            landmark="Verified Dispatch Location",
+            description=emergency_text,
+            lat=actual_lat,
+            lon=actual_lon
+        )
+        
         # Map View
         st.divider()
         st.subheader("🗺️ Live National Threat Heatmap")
