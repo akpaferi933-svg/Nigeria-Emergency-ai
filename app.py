@@ -10,40 +10,38 @@ import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import ssl
+from email.message import EmailMessage
 
 def send_instant_email_alert(agency, state, landmark, description, lat, lon):
     try:
-        sender_email = st.secrets["SENDER_EMAIL"]
-        sender_password = st.secrets["SENDER_PASSWORD"]
-        recipient_email = st.secrets["ALERT_RECIPIENT_EMAIL"]
+        sender_email = st.secrets["SENDER_EMAIL"].strip()
+        sender_password = st.secrets["SENDER_PASSWORD"].replace(" ", "").strip()
+        recipient_email = st.secrets["ALERT_RECIPIENT_EMAIL"].strip()
 
-        msg = MIMEMultipart()
-        msg["From"] = f"Nigeria Emergency AI <{sender_email}>"
+        msg = EmailMessage()
+        msg["Subject"] = f"🚨 URGENT DISPATCH [{agency}] - {state}"
+        msg["From"] = sender_email
         msg["To"] = recipient_email
-        msg["Subject"] = f"🚨 URGENT DISPATCH [{agency}]: {state} - {landmark}"
-
-        maps_link = f"https://www.google.com/maps?q={lat},{lon}" if lat and lon else "GPS Not Locked"
+        
 
         body = f"""
-VERIFIED EMERGENCY INCIDENT REPORT
-=========================================
-Routed Agency: {agency}
-State: {state}
-Landmark / LGA: {landmark}
-Incident Description: {description}
+        NIGERIA NATIONAL EMERGENCY AI DISPATCH ALERT
+        =========================================
+        Assigned Agency: {agency}
+        State: {state}
+        Location/Landmark: {landmark}
+        Incident Details: {description}
+        GPS Coordination: {lat}, {lon}
+        Google Mapa Link: https//www.google.com/maps?q={lat},{lon} 
+        """
+        msg.set_content(body)
 
-LIVE GPS VERIFICATION
-Latitude: {lat}
-Longitude: {lon}
-Google Maps Pin: {maps_link}
-=========================================
-Generated automatically by Nigeria Emergency AI Command System.
-"""
-        msg.attach(MIMEText(body, "plain"))
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15) as server:
             server.login(sender_email, sender_password)
             server.send_message(msg)
+    
         return True
     except Exception as e:
         st.error(f"Email dispatch error: {e}")
