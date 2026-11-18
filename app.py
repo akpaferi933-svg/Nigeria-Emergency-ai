@@ -314,7 +314,7 @@ if portal_mode == "Citizen Dispatch Portal":
                     }
                     st.session_state.dispatch_logs.append(log_entry)
 
-        # Trigger instant email dispatch
+        # Trigger instant email dispatch(must align with st.session_state above)
         send_instant_email_alert(
         agency=assigned_agency,
         state=claimed_state,
