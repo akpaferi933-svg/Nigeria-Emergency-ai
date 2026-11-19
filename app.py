@@ -312,7 +312,7 @@ if portal_mode == "Citizen Dispatch Portal":
                         "Nav Link": f"https://www.google.com/maps?q={actual_lat},{actual_lon}",
                         "Incident Details": emergency_text
                     }
-                    st.session_state.dispatch_logs.append(log_entry)
+        st.session_state.dispatch_logs.append(log_entry)
 
         # Trigger instant email dispatch(must align with st.session_state above)
         send_instant_email_alert(
